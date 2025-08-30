@@ -66,17 +66,56 @@ PHP_FUNCTION(opencv_imread)
  */
 PHP_FUNCTION(opencv_imwrite){
     char *filename;
-    long filename_len;
+    size_t filename_len;
     zval *object;
-    if (zend_parse_parameters(ZEND_NUM_ARGS(), "sO", &filename,&filename_len, &object,opencv_mat_ce) == FAILURE) {
+    zval *flags_array = nullptr;
+
+    // Parse parameters: string, Mat object, optional array
+    if (zend_parse_parameters(ZEND_NUM_ARGS(), "sO|a",
+                              &filename, &filename_len,
+                              &object, opencv_mat_ce,
+                              &flags_array) == FAILURE) {
         RETURN_NULL();
     }
+
     opencv_mat_object *obj = Z_PHP_MAT_OBJ_P(object);
+
+    // Convert PHP array to std::vector<int> in key/value pairs
+    std::vector<int> params;
+    if (flags_array) {
+        HashTable *ht = Z_ARRVAL_P(flags_array);
+        zend_string *key_str;
+        zend_ulong key_index;
+        zval *val;
+
+        ZEND_HASH_FOREACH_KEY_VAL(ht, key_index, key_str, val) {
+            int k = 0, v = 0;
+
+            // Determine key
+            if (key_str) {
+                // If key is string, ignore or throw (optional)
+                continue;
+            } else {
+                k = static_cast<int>(key_index); // numeric key (constant value)
+            }
+
+            // Convert value to long
+            convert_to_long(val);
+            v = Z_LVAL_P(val);
+
+            // Push key and value as consecutive elements
+            params.push_back(k);
+            params.push_back(v);
+        } ZEND_HASH_FOREACH_END();
+    }
+
+    // Call OpenCV imwrite
     try {
-        imwrite(filename,*obj->mat);
-    }catch (Exception e){
+        imwrite(filename, *obj->mat, params);
+    } catch (const cv::Exception &e) {
         opencv_throw_exception(e.what());
     }
+
     RETURN_TRUE;
 }
 
@@ -133,4 +172,25 @@ void opencv_imgcodecs_init(int module_number)
     REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMREAD_REDUCED_GRAYSCALE_8", IMREAD_REDUCED_GRAYSCALE_8, CONST_CS | CONST_PERSISTENT);
     REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMREAD_REDUCED_COLOR_8", IMREAD_REDUCED_COLOR_8, CONST_CS | CONST_PERSISTENT);
     REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMREAD_IGNORE_ORIENTATION", IMREAD_IGNORE_ORIENTATION, CONST_CS | CONST_PERSISTENT);
+
+    /**
+     * imwrite const flags
+     */
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_QUALITY", IMWRITE_JPEG_QUALITY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_PROGRESSIVE", IMWRITE_JPEG_PROGRESSIVE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_OPTIMIZE", IMWRITE_JPEG_OPTIMIZE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_RST_INTERVAL", IMWRITE_JPEG_RST_INTERVAL, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_LUMA_QUALITY", IMWRITE_JPEG_LUMA_QUALITY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_JPEG_CHROMA_QUALITY", IMWRITE_JPEG_CHROMA_QUALITY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_PNG_COMPRESSION", IMWRITE_PNG_COMPRESSION, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_PNG_STRATEGY", IMWRITE_PNG_STRATEGY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_PNG_BILEVEL", IMWRITE_PNG_BILEVEL, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_PXM_BINARY", IMWRITE_PXM_BINARY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_EXR_TYPE", IMWRITE_EXR_TYPE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_WEBP_QUALITY", IMWRITE_WEBP_QUALITY, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_PAM_TUPLETYPE", IMWRITE_PAM_TUPLETYPE, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_TIFF_RESUNIT", IMWRITE_TIFF_RESUNIT, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_TIFF_XDPI", IMWRITE_TIFF_XDPI, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_TIFF_YDPI", IMWRITE_TIFF_YDPI, CONST_CS | CONST_PERSISTENT);
+    REGISTER_NS_LONG_CONSTANT(OPENCV_NS, "IMWRITE_TIFF_COMPRESSION", IMWRITE_TIFF_COMPRESSION, CONST_CS | CONST_PERSISTENT);
 }
